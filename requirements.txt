@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+ultralytics==8.2.103
+easyocr==1.7.2
+opencv-python==4.10.0.84
+sqlalchemy==2.0.35
+geoalchemy2==0.15.2
+psycopg2-binary==2.9.9
+python-multipart==0.0.9
+pydantic==2.9.2
+numpy==1.26.4

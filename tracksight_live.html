@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TrackSight — Live Control Room</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0f1a;--panel:#111a2b;--panel2:#0d1523;--line:#1f2c42;--text:#e6ecf5;--dim:#7c8aa3;--amber:#f5a623;--cyan:#38c6d9;--red:#e5484d;--green:#3ecf8e;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Manrope',sans-serif;height:100vh;overflow:hidden}
+.mono{font-family:'IBM Plex Mono',monospace}
+.app{display:grid;grid-template-columns:290px 1fr 300px;grid-template-rows:54px 1fr;height:100vh}
+.top{grid-column:1/4;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;font-size:16px}.brand small{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+.tabs{display:flex;gap:6px}
+.tab{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:7px 14px;border-radius:8px;font:600 12px 'Manrope';cursor:pointer}
+.tab.on{background:var(--cyan);color:#04222a;border-color:var(--cyan)}
+.side{background:var(--panel);overflow-y:auto;padding-bottom:16px}
+.side.l{border-right:1px solid var(--line)}.side.r{border-left:1px solid var(--line)}
+.lbl{font-size:11px;letter-spacing:1px;color:var(--dim);padding:14px 14px 7px}
+.form{padding:0 14px;display:flex;flex-direction:column;gap:8px}
+input,select{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font:500 13px 'IBM Plex Mono',monospace}
+select{font-family:'Manrope'}
+.btn{background:var(--amber);color:#241800;border:0;border-radius:8px;padding:9px;font:700 13px 'Manrope';cursor:pointer}
+.btn.c{background:var(--cyan);color:#04222a}
+.msg{margin:6px 14px 0;font-size:12px;color:var(--dim)}
+.msg.err{color:var(--red)}
+.wi{margin:8px 14px 0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.wi.hit{border-color:var(--red);background:rgba(229,72,77,.08)}
+.wp{font:600 14px 'IBM Plex Mono'}.wm{font-size:11px;color:var(--dim);margin-top:3px}
+.wi button{margin-top:7px;background:none;border:1px solid var(--cyan);color:var(--cyan);border-radius:6px;padding:3px 9px;font:600 11px 'Manrope';cursor:pointer}
+.main{position:relative;overflow:hidden}
+.view{display:none;height:100%}.view.on{display:block}
+#vLive{padding:14px;overflow-y:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px}
+.cam{background:var(--panel2);border:2px solid var(--line);border-radius:10px;overflow:hidden}
+.cam.hit{border-color:var(--red);box-shadow:0 0 0 2px rgba(229,72,77,.35)}
+.ch{display:flex;justify-content:space-between;padding:7px 11px;font-size:12px;font-weight:700;color:var(--cyan);background:#000a}
+.ch span{color:var(--dim);font-weight:400}
+.vw{position:relative;aspect-ratio:16/10;background:#000}
+.vw img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.nosig{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--dim);font-size:13px;text-align:center;padding:20px}
+.bb{position:absolute;border:3px solid var(--green);display:none;pointer-events:none}
+.bt{position:absolute;background:var(--green);color:#062;font:700 12px 'IBM Plex Mono';padding:2px 7px;display:none;white-space:nowrap;pointer-events:none}
+.bb.red{border-color:var(--red)}.bt.red{background:var(--red);color:#fff}
+.cf{display:flex;justify-content:space-between;padding:6px 11px;font-size:11px;color:var(--dim);background:#000a}
+.live{color:var(--red);font-weight:700}
+#map{height:100%;width:100%;background:var(--bg)}
+.stats{padding:0 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sc{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.sn{font:600 19px 'IBM Plex Mono'}.sl{font-size:11px;color:var(--dim);margin-top:2px}
+.card{margin:0 14px 8px;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:8px;padding:8px 10px}
+.card.al{border-color:rgba(229,72,77,.4);border-left-color:var(--red)}
+.cp{font:600 13px 'IBM Plex Mono'}.cm{font-size:11px;color:var(--dim);margin-top:2px}
+.tl{padding:0 14px}.ti{padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+.ti b{display:block;font-size:13px}.ti span{color:var(--dim)}
+.empty{padding:6px 14px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">TrackSight<small>Live control room</small></div>
+    <div class="tabs"><button class="tab on" data-v="vLive">Live cameras</button><button class="tab" data-v="vMap">Map and route</button></div>
+    <div class="mono" style="font-size:13px" id="clock">--:--:--</div>
+  </div>
+
+  <div class="side l">
+    <div class="lbl">Add vehicle to watchlist</div>
+    <div class="form">
+      <input id="wPlate" placeholder="Plate e.g. MH26AB1234" maxlength="12">
+      <select id="wReason"><option>Blacklisted</option><option>Stolen vehicle</option><option>Route anomaly</option><option>Manual check</option></select>
+      <button class="btn" id="wAdd">Add to watchlist</button>
+    </div>
+    <div class="msg" id="wMsg"></div>
+    <div class="lbl">Watchlist</div>
+    <div id="wList"><div class="empty">Loading…</div></div>
+    <div class="lbl">Find any vehicle</div>
+    <div class="form">
+      <input id="tPlate" placeholder="Plate number">
+      <button class="btn c" id="tGo">Show route</button>
+    </div>
+    <div class="msg" id="tMsg"></div>
+    <div class="tl" id="tList"></div>
+  </div>
+
+  <div class="main">
+    <div class="view on" id="vLive"><div class="grid" id="grid"></div></div>
+    <div class="view" id="vMap"><div id="map"></div></div>
+  </div>
+
+  <div class="side r">
+    <div class="lbl">City status</div>
+    <div class="stats">
+      <div class="sc"><div class="sn" style="color:var(--green)" id="sCam">-/-</div><div class="sl">Cameras online</div></div>
+      <div class="sc"><div class="sn" style="color:var(--amber)" id="sAl">-</div><div class="sl">Active alerts</div></div>
+    </div>
+    <div class="lbl">Alerts</div>
+    <div id="alerts"><div class="empty">Loading…</div></div>
+    <div class="lbl">Latest plates read</div>
+    <div id="log"><div class="empty">Waiting for detections…</div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ============ SETTINGS: edit only this part ============ */
+const API = "http://localhost:8000";
+const LIVE_CAMERAS = {            // backend camera_id : phone video url
+  "C1": "http://10.204.226.231:8080/video",
+  "C2": "http://10.230.15.208:8080/video"
+};
+const OVERLAY_SECONDS = 6;        // how long the plate box stays on screen
+/* ======================================================== */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const normPlate = p => String(p||'').toUpperCase().replace(/\s+/g,'');
+const errText = d => !d ? 'Request failed' : typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail || d);
+
+let cameras = [], watchlist = new Set(), seenAlerts = null, logItems = [];
+const cams = {};   // camera_id -> {img, box, tag, foot, card, sig, until, wasHit}
+
+/* ---------- tabs / clock ---------- */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === t.dataset.v));
+  if (t.dataset.v === 'vMap') { initMap(); setTimeout(() => map.invalidateSize(), 50); }
+});
+setInterval(() => $('clock').textContent = new Date().toLocaleTimeString('en-GB'), 1000);
+
+/* ---------- live camera cards ---------- */
+function buildGrid() {
+  $('grid').innerHTML = Object.keys(LIVE_CAMERAS).map(id => {
+    const c = cameras.find(x => x.camera_id === id);
+    return `<div class="cam" id="cam-${id}">
+      <div class="ch">${esc(id)} ${c ? '— ' + esc(c.name) : ''}<span>${esc(c?.road_name || '')}</span></div>
+      <div class="vw"><img id="img-${id}" alt="">
+        <div class="nosig" id="ns-${id}">No signal. Check that the phone and laptop are on the same WiFi and IP Webcam is started.</div>
+        <div class="bb" id="bb-${id}"></div><div class="bt" id="bt-${id}"></div></div>
+      <div class="cf"><span id="ft-${id}">Waiting for detection…</span><span class="live">LIVE</span></div>
+    </div>`;
+  }).join('');
+  Object.keys(LIVE_CAMERAS).forEach(id => {
+    const img = $('img-' + id);
+    cams[id] = {img, box: $('bb-' + id), tag: $('bt-' + id), foot: $('ft-' + id), card: $('cam-' + id), ns: $('ns-' + id), sig: '', until: 0};
+    img.onload = () => cams[id].ns.style.display = 'none';
+    img.onerror = () => { cams[id].ns.style.display = 'flex'; setTimeout(() => connect(id), 3000); };
+    connect(id);
+  });
+}
+function connect(id) { cams[id].img.src = LIVE_CAMERAS[id] + (LIVE_CAMERAS[id].includes('?') ? '&' : '?') + 't=' + Date.now(); }
+
+/* ---------- plate overlay (reads latest detection from backend) ---------- */
+function pickDet(d) {
+  if (Array.isArray(d)) d = d[0];
+  if (d && Array.isArray(d.detections)) d = d.detections[0];
+  return d && (d.plate_number || d.plate) ? d : null;
+}
+function getBox(d) {
+  const b = d.bbox || d.box; if (!b) return null;
+  return Array.isArray(b) ? b : [b.x1, b.y1, b.x2, b.y2];
+}
+function draw(id, d) {
+  const c = cams[id], b = getBox(d), plate = d.plate_number || d.plate;
+  const red = !!d.flagged || watchlist.has(normPlate(plate));
+  c.tag.textContent = plate + (d.confirmed === false ? ' ?' : '') + (d.ocr_confidence ? '  ' + Number(d.ocr_confidence).toFixed(2) : '');
+  c.tag.className = 'bt' + (red ? ' red' : ''); c.box.className = 'bb' + (red ? ' red' : '');
+  c.card.classList.toggle('hit', red);
+  c.foot.textContent = plate + ' · ' + new Date().toLocaleTimeString('en-GB') + (red ? ' · WATCHLIST MATCH' : '');
+  if (!b) { c.tag.style.cssText = 'display:block;left:10px;top:10px'; c.box.style.display = 'none'; return; }
+  const cw = c.img.clientWidth, ch = c.img.clientHeight;
+  const iw = d.image_width || c.img.naturalWidth || 640, ih = d.image_height || c.img.naturalHeight || 480;
+  const s = Math.min(cw / iw, ch / ih), ox = (cw - iw * s) / 2, oy = (ch - ih * s) / 2;
+  let [x1, y1, x2, y2] = b.map(Number);
+  if (Math.max(x1, y1, x2, y2) <= 1.5) { x1 *= iw; x2 *= iw; y1 *= ih; y2 *= ih; }
+  Object.assign(c.box.style, {display: 'block', left: ox + x1 * s + 'px', top: oy + y1 * s + 'px', width: (x2 - x1) * s + 'px', height: (y2 - y1) * s + 'px'});
+  Object.assign(c.tag.style, {display: 'block', left: ox + x1 * s + 'px', top: Math.max(0, oy + y1 * s - 24) + 'px'});
+}
+async function pollLive() {
+  for (const id of Object.keys(cams)) {
+    const c = cams[id];
+    try {
+      const r = await fetch(`${API}/live/${id}`);
+      if (r.ok) {
+        const d = pickDet(await r.json());
+        if (d) {
+          const sig = JSON.stringify([d.plate_number || d.plate, d.detected_at || d.timestamp || d.ts, d.bbox || d.box]);
+          if (sig !== c.sig) { c.sig = sig; c.until = Date.now() + OVERLAY_SECONDS * 1000; addLog(id, d); }
+          if (Date.now() < c.until) draw(id, d);
+        }
+      } else if (r.status === 404 && !c.warned) { c.warned = 1; c.foot.textContent = 'Overlay needs /live/' + id + ' in the backend'; }
+    } catch (e) {}
+    if (Date.now() >= c.until) { c.box.style.display = 'none'; c.tag.style.display = 'none'; if (c.sig) c.card.classList.remove('hit'); }
+  }
+}
+function addLog(id, d) {
+  if (d.confirmed === false) return;                 // wait until the plate is confirmed
+  const plate = d.plate_number || d.plate;
+  const last = logItems.find(l => l.id === id);
+  if (last && last.plate === plate && Date.now() - last.ts < 20000) return;   // same plate still in view
+  logItems.unshift({id, plate, ts: Date.now(), red: !!d.flagged || watchlist.has(normPlate(plate)), t: new Date().toLocaleTimeString('en-GB')});
+  logItems = logItems.slice(0, 12);
+  $('log').innerHTML = logItems.map(l => `<div class="card ${l.red ? 'al' : ''}"><div class="cp">${esc(l.plate)}</div><div class="cm">${esc(l.id)} · ${l.t}</div></div>`).join('');
+}
+
+/* ---------- watchlist ---------- */
+async function loadWatchlist() {
+  try {
+    const rows = await (await fetch(`${API}/watchlist`)).json();
+    watchlist = new Set(rows.map(w => normPlate(w.plate_number || w.plate)));
+    $('wList').innerHTML = rows.length ? rows.map(w => {
+      const p = w.plate_number || w.plate;
+      return `<div class="wi"><div class="wp">${esc(p)}</div><div class="wm">${esc(w.reason || 'Watchlist')}</div><button data-p="${esc(p)}">Find this vehicle</button></div>`;
+    }).join('') : '<div class="empty">No vehicles added yet.</div>';
+    $('wList').querySelectorAll('button').forEach(b => b.onclick = () => { $('tPlate').value = b.dataset.p; track(b.dataset.p); });
+  } catch (e) { $('wList').innerHTML = '<div class="empty">Backend not reachable</div>'; }
+}
+$('wAdd').onclick = async () => {
+  const plate = normPlate($('wPlate').value), m = $('wMsg');
+  if (!plate) return;
+  m.className = 'msg'; m.textContent = 'Adding…';
+  try {
+    const q = new URLSearchParams({plate_number: plate, reason: $('wReason').value});
+    const r = await fetch(`${API}/watchlist?${q}`, {method: 'POST'});
+    const d = await r.json().catch(() => null);
+    if (!r.ok) { m.className = 'msg err'; m.textContent = errText(d); return; }
+    m.textContent = plate + ' added'; $('wPlate').value = ''; loadWatchlist();
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Backend not reachable'; }
+};
+
+/* ---------- map, camera markers, route ---------- */
+let map, routeLine, routeMarks = [];
+function initMap() {
+  if (map) return;
+  map = L.map('map', {zoomControl: false}).setView([19.156, 77.319], 14);
+  L.control.zoom({position: 'bottomright'}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {attribution: 'Tiles &copy; Esri', maxZoom: 19}).addTo(map);
+  const pts = cameras.map(c => {
+    L.marker([c.latitude, c.longitude], {icon: L.divIcon({className: '', iconSize: [18, 18],
+      html: `<div style="width:14px;height:14px;border-radius:50%;background:${c.is_active ? '#38c6d9' : '#7c8aa3'};border:2px solid #fff"></div>`})})
+      .addTo(map).bindPopup(`<b>${esc(c.camera_id)}</b> — ${esc(c.name)}<br>${esc(c.road_name || '')}`);
+    return [c.latitude, c.longitude];
+  });
+  if (pts.length) map.fitBounds(pts, {padding: [60, 60]});
+}
+async function track(plateRaw) {
+  const plate = normPlate(plateRaw), m = $('tMsg');
+  if (!plate) return;
+  m.className = 'msg'; m.textContent = 'Searching…'; $('tList').innerHTML = '';
+  try {
+    const r = await fetch(`${API}/trajectory/${encodeURIComponent(plate)}`), d = await r.json();
+    if (!r.ok) { m.className = 'msg err'; m.textContent = errText(d); return; }
+    const s = d.sightings || [];
+    m.textContent = s.length + ' sighting(s) found';
+    $('tList').innerHTML = s.map(x => `<div class="ti"><b>${esc(x.camera_id)} — ${esc(x.camera_name || '')}</b><span>${esc(x.road_name || '')}<br>${esc(x.detected_at || '')}</span></div>`).join('');
+    document.querySelector('[data-v="vMap"]').click();
+    if (routeLine) map.removeLayer(routeLine); routeMarks.forEach(x => map.removeLayer(x)); routeMarks = [];
+    const ll = s.map(x => cameras.find(c => c.camera_id === x.camera_id)).filter(Boolean).map(c => [c.latitude, c.longitude]);
+    ll.forEach(p => routeMarks.push(L.circleMarker(p, {radius: 9, color: '#f5a623', weight: 3, fillColor: '#0a0f1a', fillOpacity: 1}).addTo(map)));
+    if (ll.length > 1) { routeLine = L.polyline(ll, {color: '#f5a623', weight: 4, dashArray: '2 10'}).addTo(map); map.fitBounds(ll, {padding: [60, 60]}); }
+    else if (ll.length === 1) map.setView(ll[0], 16);
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Backend not reachable'; }
+}
+$('tGo').onclick = () => track($('tPlate').value);
+$('tPlate').onkeydown = e => { if (e.key === 'Enter') track($('tPlate').value); };
+
+/* ---------- alerts ---------- */
+async function loadAlerts() {
+  try {
+    const rows = await (await fetch(`${API}/alerts?only_unacknowledged=true`)).json();
+    $('sAl').textContent = rows.length;
+    $('alerts').innerHTML = rows.length ? rows.map(a => `<div class="card al"><div class="cp">${esc(a.plate_number)}</div><div class="cm">${esc(a.camera_id)} · ${esc(a.detected_at || '')}<br>${esc(a.reason || 'Flagged')}</div></div>`).join('') : '<div class="empty">No active alerts</div>';
+    const ids = new Set(rows.map(a => a.id ?? a.alert_id));
+    if (seenAlerts) rows.forEach(a => { const k = a.id ?? a.alert_id; if (!seenAlerts.has(k) && cams[a.camera_id]) { cams[a.camera_id].card.classList.add('hit'); cams[a.camera_id].until = Math.max(cams[a.camera_id].until, Date.now() + 8000); } });
+    seenAlerts = ids;
+  } catch (e) { $('alerts').innerHTML = '<div class="empty">Backend not reachable</div>'; }
+}
+
+/* ---------- start ---------- */
+(async function init() {
+  try {
+    cameras = await (await fetch(`${API}/cameras`)).json();
+    const on = cameras.filter(c => c.is_active).length;
+    $('sCam').textContent = `${on}/${cameras.length}`;
+  } catch (e) { $('sCam').textContent = 'offline'; }
+  buildGrid();
+  await loadWatchlist(); await loadAlerts();
+  setInterval(pollLive, 1000);
+  setInterval(loadAlerts, 5000);
+  setInterval(loadWatchlist, 30000);
+})();
+</script>
+</body>
+</html>
